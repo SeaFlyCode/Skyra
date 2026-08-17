@@ -1,0 +1,13 @@
+{
+  "name": "skyra",
+  "version": "1.0.0",
+  "description": "Skyra - App Astro & Ombres",
+  "private": true,
+  "scripts": {
+    "dev:app": "pnpm --filter @skyra/app dev",
+    "dev:api": "pnpm --filter @skyra/shadow-api dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}
