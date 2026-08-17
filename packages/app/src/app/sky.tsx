@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useIssPosition } from '@/hooks/use-iss-position';
 import { DEFAULT_OBSERVER, useObserverLocation } from '@/hooks/use-observer-location';
+import { MIN_PASS_ELEVATION, type IssPass } from '@/modules/iss';
 import {
   cardinalDirection,
   getMoonPhase,
@@ -17,6 +19,7 @@ import {
 
 const SUN_ACCENT = '#E8A33D';
 const MOON_ACCENT = '#7FA6D8';
+const ISS_ACCENT = '#5FD3A6';
 const REFRESH_INTERVAL_MS = 30_000;
 
 function formatTime(date: Date | null): string {
@@ -37,6 +40,14 @@ function formatDuration(minutes: number | null): string {
   if (minutes === null) return '—';
   const total = Math.round(minutes);
   return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, '0')}`;
+}
+
+function formatPassWindow(pass: IssPass, now: Date): string {
+  const sameDay = pass.start.toDateString() === now.toDateString();
+  const day = sameDay
+    ? ''
+    : `${pass.start.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })} · `;
+  return `${day}${formatTime(pass.start)} → ${formatTime(pass.end)}`;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -107,6 +118,90 @@ function Card({
 }
 
 /**
+ * L'ISS a son propre rythme : le TLE vient du réseau et la station traverse le
+ * ciel en quelques minutes, d'où un rafraîchissement bien plus rapide que le
+ * reste de l'écran.
+ */
+function IssCard({
+  latitude,
+  longitude,
+  now,
+}: {
+  latitude: number;
+  longitude: number;
+  now: Date;
+}) {
+  const { position, nextPass, status, error } = useIssPosition(latitude, longitude);
+
+  const subtitle =
+    status === 'pending'
+      ? 'récupération du TLE…'
+      : status === 'error'
+        ? 'hors ligne'
+        : position === null
+          ? 'propagation impossible'
+          : position.elevation > 0
+            ? position.sunlit
+              ? 'au-dessus de l’horizon, éclairée'
+              : 'au-dessus de l’horizon, dans l’ombre'
+            : 'sous l’horizon';
+
+  return (
+    <Card title="ISS" accent={ISS_ACCENT} subtitle={subtitle}>
+      {error !== null && (
+        <ThemedText type="small" themeColor="textSecondary" style={styles.notice}>
+          {error}
+        </ThemedText>
+      )}
+
+      {position !== null && (
+        <>
+          <Row
+            label="Azimut"
+            value={`${formatAngle(position.azimuth)} ${cardinalDirection(position.azimuth)}`}
+          />
+          <Row label="Hauteur" value={formatAngle(position.elevation)} />
+          <Row label="Altitude" value={`${Math.round(position.altitudeKm)} km`} />
+          <Row label="Distance" value={`${Math.round(position.rangeKm).toLocaleString()} km`} />
+          <Row label="Vitesse" value={`${position.speedKmS.toFixed(2)} km/s`} />
+          <Row
+            label="Survole"
+            value={`${position.latitude.toFixed(2)}° / ${position.longitude.toFixed(2)}°`}
+          />
+          <HorizonMeter elevation={position.elevation} accent={ISS_ACCENT} />
+        </>
+      )}
+
+      {status === 'ready' && (
+        <>
+          <View style={styles.separator} />
+          {nextPass === null ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              Aucun passage visible dans les 48 h
+            </ThemedText>
+          ) : (
+            <>
+              <Row label="Prochain passage" value={formatPassWindow(nextPass, now)} />
+              <Row
+                label="Culmination"
+                value={`${formatAngle(nextPass.maxElevation)} ${cardinalDirection(nextPass.peakAzimuth)} à ${formatTime(nextPass.peak)}`}
+              />
+              <Row
+                label="Trajet"
+                value={`${cardinalDirection(nextPass.startAzimuth)} → ${cardinalDirection(nextPass.endAzimuth)} · ${Math.round(nextPass.durationSeconds / 60)} min`}
+              />
+              <ThemedText type="code" themeColor="textSecondary">
+                station éclairée, ciel sombre, hauteur &gt; {MIN_PASS_ELEVATION}°
+              </ThemedText>
+            </>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
  * Le rendu web est pré-généré à l'export : le calcul est fait après le montage
  * pour ne jamais afficher une position figée à l'heure du build.
  */
@@ -166,6 +261,8 @@ function SkyReadout({
       <HorizonMeter elevation={moon.elevation} accent={MOON_ACCENT} />
     </Card>
 
+    <IssCard latitude={latitude} longitude={longitude} now={now} />
+
     <Card
       title="Heures clés"
       accent={SUN_ACCENT}
@@ -186,7 +283,7 @@ function SkyReadout({
     </Card>
 
     <ThemedText type="code" themeColor="textSecondary" style={styles.footer}>
-      calculé hors-ligne · {formatTime(now)}
+      Soleil et Lune hors-ligne · ISS propagée depuis le TLE · {formatTime(now)}
     </ThemedText>
     </>
   );

@@ -22,9 +22,70 @@ interface ShadowBody {
   datetime: string;
 }
 
+interface Tle {
+  name: string;
+  line1: string;
+  line2: string;
+  fetchedAt: string;
+}
+
+const ISS_TLE_URL =
+  'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE';
+const TLE_TTL_MS = 7_200_000;
+
+let tleCache: Tle | null = null;
+
+function parseTle(raw: string): Tle | null {
+  const lines = raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const [name, line1, line2] = lines;
+  if (!name || !line1?.startsWith('1 ') || !line2?.startsWith('2 ')) {
+    return null;
+  }
+
+  return { name, line1, line2, fetchedAt: new Date().toISOString() };
+}
+
 const app = Fastify({ logger: true });
 
 app.get('/health', async () => ({ status: 'ok' }));
+
+app.get('/tle/iss', async (request, reply) => {
+  if (tleCache && Date.now() - Date.parse(tleCache.fetchedAt) < TLE_TTL_MS) {
+    return tleCache;
+  }
+
+  try {
+    const res = await fetch(ISS_TLE_URL, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      throw new Error(`Celestrak a répondu ${res.status}`);
+    }
+
+    const parsed = parseTle(await res.text());
+    if (!parsed) {
+      throw new Error('Format TLE inattendu');
+    }
+
+    tleCache = parsed;
+    return parsed;
+  } catch (err) {
+    request.log.error({ err }, 'Récupération TLE ISS échouée');
+
+    // Un TLE périmé reste bien plus utile qu'une erreur : la précision se dégrade lentement.
+    if (tleCache) {
+      return tleCache;
+    }
+
+    return reply
+      .code(502)
+      .send({ error: 'Bad Gateway', message: 'TLE ISS indisponible' });
+  }
+});
 
 // STUB : réponse mockée à la forme finale.
 // L'implémentation réelle (Overpass API + position solaire + projection d'ombres) viendra ensuite.
