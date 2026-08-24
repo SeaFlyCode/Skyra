@@ -7,48 +7,24 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useIssPosition } from '@/hooks/use-iss-position';
 import { DEFAULT_OBSERVER, useObserverLocation } from '@/hooks/use-observer-location';
-import { MIN_PASS_ELEVATION, type IssPass } from '@/modules/iss';
+import { MIN_PASS_ELEVATION } from '@/modules/iss';
 import {
   cardinalDirection,
+  formatAngle,
+  formatDuration,
+  formatPassWindow,
+  formatTime,
+  formatWindow,
   getMoonPhase,
   getMoonPosition,
   getSunPosition,
   getSunTimes,
-  type TimeWindow,
 } from '@/modules/sun-moon';
 
 const SUN_ACCENT = '#E8A33D';
 const MOON_ACCENT = '#7FA6D8';
 const ISS_ACCENT = '#5FD3A6';
 const REFRESH_INTERVAL_MS = 30_000;
-
-function formatTime(date: Date | null): string {
-  if (!date) return '—';
-  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatWindow(window: TimeWindow): string {
-  if (!window.start || !window.end) return '—';
-  return `${formatTime(window.start)} → ${formatTime(window.end)}`;
-}
-
-function formatAngle(degrees: number): string {
-  return `${degrees.toFixed(1)}°`;
-}
-
-function formatDuration(minutes: number | null): string {
-  if (minutes === null) return '—';
-  const total = Math.round(minutes);
-  return `${Math.floor(total / 60)} h ${String(total % 60).padStart(2, '0')}`;
-}
-
-function formatPassWindow(pass: IssPass, now: Date): string {
-  const sameDay = pass.start.toDateString() === now.toDateString();
-  const day = sameDay
-    ? ''
-    : `${pass.start.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })} · `;
-  return `${day}${formatTime(pass.start)} → ${formatTime(pass.end)}`;
-}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

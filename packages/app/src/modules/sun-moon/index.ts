@@ -30,6 +30,14 @@ export {
 } from './moon';
 
 export {
+  formatAngle,
+  formatDuration,
+  formatPassWindow,
+  formatTime,
+  formatWindow,
+} from './format';
+
+export {
   equatorialToHorizontal,
   eclipticToEquatorial,
   greenwichSiderealTime,

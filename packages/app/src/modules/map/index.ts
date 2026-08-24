@@ -8,7 +8,11 @@
  */
 
 export { ReliefMap } from './relief-map';
-export { SkyCompass, SUN_ACCENT, MOON_ACCENT } from './sky-compass';
+export { SkyCompass } from './sky-compass';
+export { SUN_ACCENT, MOON_ACCENT, ISS_ACCENT } from './accents';
+export { LocationBadge } from './location-badge';
+export { MapToolbar } from './map-toolbar';
+export { SkyPanel, SIDE_PANEL_WIDTH, DESKTOP_BREAKPOINT } from './sky-panel';
 export {
   buildMapStyle,
   tileProfile,

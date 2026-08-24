@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -7,8 +8,13 @@ import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { DEFAULT_OBSERVER, useObserverLocation } from '@/hooks/use-observer-location';
 import {
+  DESKTOP_BREAKPOINT,
+  LocationBadge,
+  MapToolbar,
   ReliefMap,
+  SIDE_PANEL_WIDTH,
   SkyCompass,
+  SkyPanel,
   tileProfileNotice,
   type MapCoordinates,
   type MapStatus,
@@ -28,17 +34,21 @@ const CENTER_EPSILON = 0.0002;
 const BEARING_EPSILON = 0.25;
 
 function MapOverlay({
+  location,
   center,
   bearing,
   status,
   errorMessage,
 }: {
+  /** Position réelle de l'observateur — le panneau Ciel s'y ancre, indépendamment du pan de la carte. */
+  location: MapCoordinates;
   center: MapCoordinates;
   bearing: number;
   status: MapStatus;
   errorMessage: string | null;
 }) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -47,42 +57,43 @@ function MapOverlay({
     return () => clearInterval(timer);
   }, []);
 
-  const topInset =
-    Platform.OS === 'web' ? WEB_TAB_BAR_HEIGHT : insets.top + Spacing.two;
+  const topInset = Platform.OS === 'web' ? WEB_TAB_BAR_HEIGHT : insets.top + Spacing.two;
+  // Le panneau Ciel desktop occupe toute la colonne droite : la boussole et
+  // les outils flottants, aussi ancrés à droite, doivent se décaler pour ne
+  // pas passer dessous.
+  const isSidePanel = width >= DESKTOP_BREAKPOINT;
 
   return (
-    <View
-      style={[styles.overlay, { paddingTop: topInset }]}
-      pointerEvents="box-none">
+    <View style={[styles.overlay, { paddingTop: topInset }]} pointerEvents="box-none">
       <View style={styles.overlayTop} pointerEvents="box-none">
-        <View style={styles.badge}>
-          <ThemedText type="code" style={styles.badgeTitle}>
-            CENTRE DE LA VUE
-          </ThemedText>
-          <ThemedText type="code" style={styles.badgeValue}>
-            {center.latitude.toFixed(4)}° / {center.longitude.toFixed(4)}°
-          </ThemedText>
-        </View>
+        <LocationBadge center={center} />
 
-        {now && <SkyCompass center={center} bearing={bearing} date={now} />}
+        <View
+          style={[styles.rightColumn, isSidePanel && { marginRight: SIDE_PANEL_WIDTH + Spacing.three }]}
+          pointerEvents="box-none">
+          {now && <SkyCompass center={center} bearing={bearing} date={now} />}
+          <MapToolbar />
+        </View>
       </View>
 
-      <View style={styles.overlayBottom} pointerEvents="box-none">
+      <View style={styles.overlayNotices} pointerEvents="box-none">
         {status === 'error' && errorMessage && (
-          <View style={[styles.badge, styles.badgeError]}>
+          <View style={[styles.badge, styles.badgeError]} pointerEvents="none">
             <ThemedText type="code" style={styles.badgeValue}>
               {errorMessage}
             </ThemedText>
           </View>
         )}
         {tileProfileNotice && (
-          <View style={styles.badge}>
+          <View style={styles.badge} pointerEvents="none">
             <ThemedText type="code" style={styles.badgeValue}>
               {tileProfileNotice}
             </ThemedText>
           </View>
         )}
       </View>
+
+      {now && <SkyPanel location={location} now={now} topInset={topInset} />}
     </View>
   );
 }
@@ -128,31 +139,34 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <ReliefMap
-        initialCenter={location}
-        onViewStateChange={handleViewStateChange}
-        onStatusChange={handleStatusChange}
-        style={StyleSheet.absoluteFill}
-      />
+    <GestureHandlerRootView style={styles.screen}>
+      <View style={styles.screen}>
+        <ReliefMap
+          initialCenter={location}
+          onViewStateChange={handleViewStateChange}
+          onStatusChange={handleStatusChange}
+          style={StyleSheet.absoluteFill}
+        />
 
-      <MapOverlay
-        center={view?.center ?? location}
-        bearing={view?.bearing ?? 0}
-        status={mapStatus}
-        errorMessage={errorMessage}
-      />
+        <MapOverlay
+          location={location}
+          center={view?.center ?? location}
+          bearing={view?.bearing ?? 0}
+          status={mapStatus}
+          errorMessage={errorMessage}
+        />
 
-      {locationStatus === 'fallback' && (
-        <Pressable
-          onPress={retry}
-          style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
-          <ThemedText type="code" style={styles.badgeValue}>
-            {fallbackReason} — vue centrée sur {DEFAULT_OBSERVER.label}. Réessayer
-          </ThemedText>
-        </Pressable>
-      )}
-    </View>
+        {locationStatus === 'fallback' && (
+          <Pressable
+            onPress={retry}
+            style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
+            <ThemedText type="code" style={styles.badgeValue}>
+              {fallbackReason} — vue centrée sur {DEFAULT_OBSERVER.label}. Réessayer
+            </ThemedText>
+          </Pressable>
+        )}
+      </View>
+    </GestureHandlerRootView>
   );
 }
 
@@ -173,7 +187,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: Spacing.three,
-    justifyContent: 'space-between',
   },
   overlayTop: {
     flexDirection: 'row',
@@ -181,7 +194,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
-  overlayBottom: {
+  rightColumn: {
+    alignItems: 'flex-end',
+    gap: Spacing.three,
+  },
+  overlayNotices: {
+    marginTop: Spacing.two,
     alignItems: 'flex-start',
     gap: Spacing.two,
     maxWidth: 420,
@@ -198,16 +216,12 @@ const styles = StyleSheet.create({
   badgeError: {
     borderColor: '#E8533D88',
   },
-  badgeTitle: {
-    color: '#FFFFFF66',
-    letterSpacing: 1,
-  },
   badgeValue: {
     color: '#FFFFFFCC',
   },
   retry: {
     position: 'absolute',
-    bottom: Spacing.six,
+    bottom: 190,
     alignSelf: 'center',
     backgroundColor: '#0B1016DD',
     borderRadius: Spacing.two,
