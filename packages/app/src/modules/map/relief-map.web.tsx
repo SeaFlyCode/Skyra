@@ -3,8 +3,21 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import maplibreGlPackage from 'maplibre-gl/package.json';
+
 import { buildMapStyle, INITIAL_PITCH, INITIAL_ZOOM, MAX_PITCH } from './style';
 import type { MapViewState, ReliefMapProps } from './types';
+
+// `maplibre-gl` instancie son web worker via `new Worker(new URL('./maplibre-gl-worker.mjs',
+// import.meta.url))`. Metro bundle tout en un seul fichier pour le web : à l'exécution,
+// `import.meta.url` ne pointe donc pas vers le module `maplibre-gl` mais vers le bundle
+// d'entrée (`expo-router/entry`), et le worker est demandé à une URL invalide
+// (`.../node_modules/expo-router/maplibre-gl-worker.mjs`, servie en HTML par le dev server,
+// d'où l'erreur de type MIME). Metro n'a pas de mécanisme pour resservir ce fichier ni son
+// import relatif `maplibre-gl-shared.mjs` à la bonne URL, donc on pointe explicitement le
+// worker vers unpkg (CDN public de npm), à la version exacte installée : maplibre-gl gère
+// nativement le cross-origin ici en enveloppant l'URL dans un blob `import(...)`.
+const MAPLIBRE_WORKER_URL = `https://unpkg.com/maplibre-gl@${maplibreGlPackage.version}/dist/maplibre-gl-worker.mjs`;
 
 /**
  * Carte relief pour le web. `maplibre-gl` touche `window` dès l'évaluation du
@@ -35,8 +48,10 @@ export function ReliefMap({
     let disposed = false;
 
     import('maplibre-gl')
-      .then(({ Map, NavigationControl, ScaleControl }) => {
+      .then(({ Map, NavigationControl, ScaleControl, setWorkerUrl }) => {
         if (disposed) return;
+
+        setWorkerUrl(MAPLIBRE_WORKER_URL);
 
         map = new Map({
           container,
