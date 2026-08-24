@@ -32,3 +32,7 @@ pnpm dev:api
 - MapLibre (carte 3D)
 - Fastify (API)
 - TypeScript strict sur tout le monorepo
+
+## Licence
+
+AGPL-3.0 — voir [LICENSE](./LICENSE).
