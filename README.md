@@ -35,4 +35,8 @@ pnpm dev:api
 
 ## Licence
 
-AGPL-3.0 — voir [LICENSE](./LICENSE).
+AGPL-3.0 + Commons Clause — voir [LICENSE](./LICENSE). Usage, modification et
+republication libres, republication du code source obligatoire en cas de
+modification (y compris en service réseau). L'usage commercial (vente,
+hébergement payant, support payant dérivant substantiellement de Skyra)
+nécessite une licence commerciale séparée auprès de l'auteur.
