@@ -1,108 +1,73 @@
-import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
-import Animated, { Keyframe, Easing } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
 
 import classes from './animated-icon.module.css';
-const DURATION = 300;
+
+const DURATION = 650;
+const MIN_VISIBLE = 400;
+
+const STARS = [
+  { top: '18%', left: '22%', size: 3, delay: 0 },
+  { top: '28%', left: '78%', size: 2, delay: 60 },
+  { top: '14%', left: '58%', size: 2, delay: 120 },
+  { top: '62%', left: '16%', size: 2, delay: 180 },
+  { top: '70%', left: '82%', size: 3, delay: 240 },
+  { top: '78%', left: '54%', size: 2, delay: 300 },
+  { top: '38%', left: '12%', size: 2, delay: 360 },
+  { top: '46%', left: '88%', size: 2, delay: 420 },
+  { top: '84%', left: '30%', size: 3, delay: 480 },
+  { top: '10%', left: '38%', size: 2, delay: 540 },
+  { top: '56%', left: '70%', size: 2, delay: 600 },
+  { top: '32%', left: '46%', size: 2, delay: 660 },
+] as const;
 
 export function AnimatedSplashOverlay() {
-  return null;
-}
+  const [exiting, setExiting] = useState(false);
+  const [visible, setVisible] = useState(true);
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 0 }],
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(1.2),
-  },
-});
+  useEffect(() => {
+    const exitTimer = setTimeout(() => setExiting(true), MIN_VISIBLE);
+    return () => clearTimeout(exitTimer);
+  }, []);
 
-const logoKeyframe = new Keyframe({
-  0: {
-    opacity: 0,
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    opacity: 0,
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(1.2),
-  },
-});
+  useEffect(() => {
+    if (!exiting) return;
+    const hideTimer = setTimeout(() => setVisible(false), DURATION);
+    return () => clearTimeout(hideTimer);
+  }, [exiting]);
 
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '-180deg' }, { scale: 0.8 }],
-    opacity: 0,
-  },
-  [DURATION / 1000]: {
-    transform: [{ rotateZ: '0deg' }, { scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
+  if (!visible) return null;
 
-export function AnimatedIcon() {
   return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
-
-      <Animated.View style={styles.background} entering={keyframe.duration(DURATION)}>
-        <div className={classes.expoLogoBackground} />
-      </Animated.View>
-
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
-      </Animated.View>
-    </View>
+    <div className={`${classes.overlay} ${exiting ? classes.overlayExiting : ''}`}>
+      <SkyraMark />
+    </div>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    width: '100%',
-    zIndex: 1000,
-    position: 'absolute',
-    top: 128 / 2 + 138,
-  },
-  imageContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
-  },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 128,
-    height: 128,
-  },
-  image: {
-    position: 'absolute',
-    width: 76,
-    height: 71,
-  },
-  background: {
-    width: 128,
-    height: 128,
-    position: 'absolute',
-  },
-});
+function SkyraMark() {
+  return (
+    <div className={classes.mark}>
+      {STARS.map((star) => (
+        <div
+          key={`${star.top}-${star.left}`}
+          className={classes.star}
+          style={{
+            top: star.top,
+            left: star.left,
+            width: star.size,
+            height: star.size,
+            ['--delay' as string]: `${star.delay}ms`,
+          }}
+        />
+      ))}
+
+      <div className={classes.halo} />
+
+      <div className={classes.orb}>
+        <div className={classes.orbShade} />
+      </div>
+
+      <span className={classes.title}>SKYRA</span>
+    </div>
+  );
+}

@@ -1,6 +1,155 @@
-.expoLogoBackground {
-  background-image: linear-gradient(180deg, #3c9ffe, #0274df);
-  border-radius: 40px;
-  width: 128px;
-  height: 128px;
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 90% at 50% 30%, #101a2e 0%, #050912 55%, #020509 100%);
+  animation: fadeIn 300ms ease-out both;
+}
+
+.overlayExiting {
+  animation: exit 650ms ease-out forwards;
+}
+
+.mark {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: #eaf2ff;
+  opacity: 0;
+  animation: starIn 400ms ease-out forwards;
+  animation-delay: var(--delay);
+}
+
+.halo {
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(122, 168, 255, 0.4) 0%,
+    rgba(122, 168, 255, 0) 45%,
+    rgba(255, 214, 150, 0.35) 100%
+  );
+  animation: spin 50s linear infinite;
+}
+
+.orb {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  margin-bottom: 28px;
+  overflow: hidden;
+  background: linear-gradient(155deg, #fff6e4 0%, #f3d9a3 45%, #c9a466 100%);
+  opacity: 0;
+  transform: scale(0.6);
+  animation: orbIn 650ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.orbShade {
+  position: absolute;
+  top: -20px;
+  right: -28px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: #050912;
+  opacity: 0.55;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 6px;
+  color: #eaf2ff;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: titleIn 650ms ease-out 200ms forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes exit {
+  0%,
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes starIn {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes titleIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .star,
+  .halo,
+  .orb,
+  .title {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
 }
