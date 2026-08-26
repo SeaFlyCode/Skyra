@@ -1,7 +1,20 @@
-import { Camera, Map, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, type ViewStateChangeEvent } from '@maplibre/maplibre-react-native';
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
 
+import {
+  celestialMarkerGeoJson,
+  issMarkerLayer,
+  ISS_MARKER_SOURCE_ID,
+  issTrailGeoJson,
+  issTrailLayer,
+  ISS_TRAIL_SOURCE_ID,
+  moonMarkerLayer,
+  MOON_MARKER_SOURCE_ID,
+  pointGeoJson,
+  sunMarkerLayer,
+  SUN_MARKER_SOURCE_ID,
+} from './sky-overlay';
 import { buildMapStyle, INITIAL_PITCH, INITIAL_ZOOM } from './style';
 import type { ReliefMapProps } from './types';
 
@@ -14,6 +27,7 @@ export function ReliefMap({
   initialCenter,
   onViewStateChange,
   onStatusChange,
+  skyOverlay,
   style,
 }: ReliefMapProps) {
   // Le style ne dépend d'aucune prop : le recréer rechargerait toutes les tuiles.
@@ -58,6 +72,19 @@ export function ReliefMap({
           bearing: 0,
         }}
       />
+
+      <GeoJSONSource id={ISS_TRAIL_SOURCE_ID} data={issTrailGeoJson(skyOverlay?.issTrail ?? [])}>
+        <Layer {...issTrailLayer(ISS_TRAIL_SOURCE_ID)} />
+      </GeoJSONSource>
+      <GeoJSONSource id={SUN_MARKER_SOURCE_ID} data={celestialMarkerGeoJson(skyOverlay?.sun ?? null)}>
+        <Layer {...sunMarkerLayer(SUN_MARKER_SOURCE_ID)} />
+      </GeoJSONSource>
+      <GeoJSONSource id={MOON_MARKER_SOURCE_ID} data={celestialMarkerGeoJson(skyOverlay?.moon ?? null)}>
+        <Layer {...moonMarkerLayer(MOON_MARKER_SOURCE_ID)} />
+      </GeoJSONSource>
+      <GeoJSONSource id={ISS_MARKER_SOURCE_ID} data={pointGeoJson(skyOverlay?.issPosition ?? null)}>
+        <Layer {...issMarkerLayer(ISS_MARKER_SOURCE_ID)} />
+      </GeoJSONSource>
     </Map>
   );
 }

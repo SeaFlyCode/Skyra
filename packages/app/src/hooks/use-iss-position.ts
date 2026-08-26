@@ -16,6 +16,13 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_SHADOW_API_URL ?? 'http://localhost
 const TLE_TTL_MS = 3_600_000;
 const POSITION_INTERVAL_MS = 3_000;
 
+/** Fenêtre et pas d'échantillonnage de la trajectoire affichée sur la carte. */
+const TRAIL_HALF_RANGE_MS = 12 * 60_000;
+const TRAIL_STEP_MS = 60_000;
+
+/** Point subsatellite seul, pour la trajectoire — pas besoin des angles observateur. */
+export type IssTrailPoint = { latitude: number; longitude: number };
+
 type CachedTle = {
   tle: IssTle;
   at: number;
@@ -46,11 +53,23 @@ async function fetchTle(signal: AbortSignal): Promise<IssTle> {
 
 export type IssState = {
   position: IssPosition | null;
+  /** Trajectoire récente/à venir (~±12 min autour de maintenant), pour l'overlay carte. */
+  trail: IssTrailPoint[];
   nextPass: IssPass | null;
   status: 'pending' | 'ready' | 'error';
   /** Message lisible en cas d'échec de récupération du TLE. */
   error: string | null;
 };
+
+/** Échantillonne la trajectoire subsatellite autour de `date`, sans les angles observateur. */
+function buildTrail(satrec: SatRec, observer: { latitude: number; longitude: number }, date: Date): IssTrailPoint[] {
+  const points: IssTrailPoint[] = [];
+  for (let offset = -TRAIL_HALF_RANGE_MS; offset <= TRAIL_HALF_RANGE_MS; offset += TRAIL_STEP_MS) {
+    const sample = getIssPosition(satrec, observer, new Date(date.getTime() + offset));
+    if (sample) points.push({ latitude: sample.latitude, longitude: sample.longitude });
+  }
+  return points;
+}
 
 /**
  * Suit l'ISS pour un observateur donné : le TLE est récupéré une fois par heure,
@@ -62,6 +81,7 @@ export function useIssPosition(latitude: number, longitude: number): IssState {
   );
   const [error, setError] = useState<string | null>(null);
   const [position, setPosition] = useState<IssPosition | null>(null);
+  const [trail, setTrail] = useState<IssTrailPoint[]>([]);
   const [nextPass, setNextPass] = useState<IssPass | null>(null);
   const passRef = useRef<IssPass | null>(null);
 
@@ -97,6 +117,7 @@ export function useIssPosition(latitude: number, longitude: number): IssState {
     const tick = () => {
       const now = new Date();
       setPosition(getIssPosition(satrec, observer, now));
+      setTrail(buildTrail(satrec, observer, now));
 
       if (!passRef.current || now >= passRef.current.end) {
         passRef.current = findNextVisiblePass(satrec, observer, now);
@@ -113,6 +134,7 @@ export function useIssPosition(latitude: number, longitude: number): IssState {
 
   return {
     position,
+    trail,
     nextPass,
     status: position ? 'ready' : failure !== null ? 'error' : 'pending',
     error: failure,

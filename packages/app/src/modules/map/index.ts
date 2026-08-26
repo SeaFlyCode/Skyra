@@ -8,11 +8,17 @@
  */
 
 export { ReliefMap } from './relief-map';
-export { SkyCompass } from './sky-compass';
+export { SkyPointer } from './sky-pointer';
 export { SUN_ACCENT, MOON_ACCENT, ISS_ACCENT } from './accents';
 export { LocationBadge } from './location-badge';
 export { MapToolbar } from './map-toolbar';
 export { SkyPanel, SIDE_PANEL_WIDTH, DESKTOP_BREAKPOINT } from './sky-panel';
+export { useSkyData, type SkyData } from './use-sky-data';
+export {
+  celestialGroundPoint,
+  CELESTIAL_MARKER_DISTANCE_KM,
+  type CelestialGroundPoint,
+} from './celestial-ground';
 export {
   buildMapStyle,
   tileProfile,
@@ -27,4 +33,5 @@ export type {
   MapStatus,
   MapViewState,
   ReliefMapProps,
+  SkyOverlay,
 } from './types';

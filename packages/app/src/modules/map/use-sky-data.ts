@@ -7,9 +7,8 @@ import { getMoonPhase, getMoonPosition, getSunPosition } from '@/modules/sun-moo
 
 /**
  * Rassemble les lectures Soleil / Lune / ISS utilisées par le panneau Ciel de
- * l'écran Carte. Recalculé à chaque tick de `now`, sur le même principe que
- * `SkyReadout` dans `app/sky.tsx` (mais sans dupliquer son code : les deux
- * s'appuient sur les mêmes fonctions pures de `modules/sun-moon`).
+ * l'écran Carte. Recalculé à chaque tick de `now`, en s'appuyant uniquement
+ * sur les fonctions pures de `modules/sun-moon`.
  */
 export function useSkyData(location: MapCoordinates, now: Date) {
   const sun = useMemo(

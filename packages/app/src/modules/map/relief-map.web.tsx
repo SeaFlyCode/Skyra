@@ -5,8 +5,51 @@ import { StyleSheet, View } from 'react-native';
 
 import maplibreGlPackage from 'maplibre-gl/package.json';
 
+import {
+  celestialMarkerGeoJson,
+  issMarkerLayer,
+  ISS_MARKER_SOURCE_ID,
+  issTrailGeoJson,
+  issTrailLayer,
+  ISS_TRAIL_SOURCE_ID,
+  moonMarkerLayer,
+  MOON_MARKER_SOURCE_ID,
+  pointGeoJson,
+  sunMarkerLayer,
+  SUN_MARKER_SOURCE_ID,
+} from './sky-overlay';
 import { buildMapStyle, INITIAL_PITCH, INITIAL_ZOOM, MAX_PITCH } from './style';
-import type { MapViewState, ReliefMapProps } from './types';
+import type { MapViewState, ReliefMapProps, SkyOverlay } from './types';
+
+/**
+ * Ajoute (une fois) puis met à jour les sources/couches Soleil/Lune/ISS.
+ * `maplibre-gl` n'a pas d'équivalent déclaratif comme les enfants JSX du
+ * natif : on gère donc l'idempotence à la main (`addSource`/`setData`).
+ */
+function applySkyOverlay(map: import('maplibre-gl').Map, overlay: SkyOverlay | undefined): void {
+  const sources: [string, GeoJSON.FeatureCollection][] = [
+    [ISS_TRAIL_SOURCE_ID, issTrailGeoJson(overlay?.issTrail ?? [])],
+    [ISS_MARKER_SOURCE_ID, pointGeoJson(overlay?.issPosition ?? null)],
+    [SUN_MARKER_SOURCE_ID, celestialMarkerGeoJson(overlay?.sun ?? null)],
+    [MOON_MARKER_SOURCE_ID, celestialMarkerGeoJson(overlay?.moon ?? null)],
+  ];
+
+  for (const [id, data] of sources) {
+    const existing = map.getSource(id) as import('maplibre-gl').GeoJSONSource | undefined;
+    if (existing) existing.setData(data);
+    else map.addSource(id, { type: 'geojson', data });
+  }
+
+  const layers = [
+    issTrailLayer(ISS_TRAIL_SOURCE_ID),
+    issMarkerLayer(ISS_MARKER_SOURCE_ID),
+    sunMarkerLayer(SUN_MARKER_SOURCE_ID),
+    moonMarkerLayer(MOON_MARKER_SOURCE_ID),
+  ];
+  for (const layer of layers) {
+    if (!map.getLayer(layer.id)) map.addLayer(layer);
+  }
+}
 
 // `maplibre-gl` instancie son web worker via `new Worker(new URL('./maplibre-gl-worker.mjs',
 // import.meta.url))`. Metro bundle tout en un seul fichier pour le web : à l'exécution,
@@ -28,6 +71,7 @@ export function ReliefMap({
   initialCenter,
   onViewStateChange,
   onStatusChange,
+  skyOverlay,
   style,
 }: ReliefMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +82,12 @@ export function ReliefMap({
   handlersRef.current = { onViewStateChange, onStatusChange };
 
   const initialCameraRef = useRef(initialCenter);
+
+  // Portée par une ref car mise à jour bien plus souvent (toutes les 3 s) que
+  // le montage de la carte ; lue au chargement puis à chaque changement.
+  const skyOverlayRef = useRef(skyOverlay);
+  skyOverlayRef.current = skyOverlay;
+  const mapRef = useRef<import('maplibre-gl').Map | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -92,6 +142,8 @@ export function ReliefMap({
 
         map.on('move', scheduleEmit);
         map.on('load', () => {
+          mapRef.current = map;
+          applySkyOverlay(map!, skyOverlayRef.current);
           emit();
           handlersRef.current.onStatusChange?.('ready', null);
         });
@@ -112,9 +164,17 @@ export function ReliefMap({
     return () => {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
+      mapRef.current = null;
       map?.remove();
     };
   }, []);
+
+  // Ré-applique l'overlay à chaque mise à jour (position ISS toutes les 3 s,
+  // Soleil/Lune à chaque tick d'horloge) ; ignoré tant que la carte n'est pas
+  // chargée, `map.on('load', …)` s'en charge alors une première fois.
+  useEffect(() => {
+    if (mapRef.current) applySkyOverlay(mapRef.current, skyOverlay);
+  }, [skyOverlay]);
 
   return (
     <View style={[styles.container, style]}>

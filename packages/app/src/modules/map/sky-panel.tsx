@@ -3,8 +3,7 @@ import { useWindowDimensions } from 'react-native';
 
 import { SkyPanelSide } from './sky-panel-side';
 import { SkyPanelSheet } from './sky-panel-sheet';
-import type { MapCoordinates } from './types';
-import { useSkyData } from './use-sky-data';
+import type { SkyData } from './use-sky-data';
 
 export { SIDE_PANEL_WIDTH } from './sky-panel-side';
 
@@ -19,21 +18,22 @@ const DESKTOP_BREAKPOINT = 768;
 /**
  * Panneau Ciel de l'écran Carte : bascule entre bottom sheet (mobile/étroit)
  * et panneau latéral (desktop large) selon la largeur de fenêtre. Les données
- * Soleil / Lune / ISS viennent de `useSkyData`, branché sur la position réelle
- * de l'observateur (pas le centre de la carte, qui peut être pané ailleurs).
+ * Soleil / Lune / ISS (`data`) sont calculées par l'écran appelant via
+ * `useSkyData`, sur la position réelle de l'observateur (pas le centre de la
+ * carte, qui peut être pané ailleurs) — partagées avec les overlays 3D de la
+ * carte pour n'interroger qu'une seule fois le TLE ISS.
  */
 export function SkyPanel({
-  location,
+  data,
   now,
   topInset,
 }: {
-  location: MapCoordinates;
+  data: SkyData;
   now: Date;
   topInset: number;
 }) {
   const { width, height } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
-  const data = useSkyData(location, now);
 
   if (width >= DESKTOP_BREAKPOINT) {
     return (

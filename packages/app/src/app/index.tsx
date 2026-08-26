@@ -1,101 +1,279 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
+import { DEFAULT_OBSERVER, useObserverLocation } from '@/hooks/use-observer-location';
+import {
+  celestialGroundPoint,
+  DESKTOP_BREAKPOINT,
+  LocationBadge,
+  MapToolbar,
+  ReliefMap,
+  SIDE_PANEL_WIDTH,
+  SkyPanel,
+  SkyPointer,
+  tileProfileNotice,
+  useSkyData,
+  type MapCoordinates,
+  type MapStatus,
+  type MapViewState,
+  type SkyData,
+  type SkyOverlay,
+} from '@/modules/map';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+const REFRESH_INTERVAL_MS = 30_000;
+
+/**
+ * Seuils en dessous desquels un mouvement de caméra ne change rien de visible :
+ * ils évitent un rendu React à chaque frame pendant un pan ou une rotation.
+ */
+const CENTER_EPSILON = 0.0002;
+const BEARING_EPSILON = 0.25;
+
+function MapOverlay({
+  center,
+  status,
+  errorMessage,
+  now,
+  skyData,
+}: {
+  center: MapCoordinates;
+  status: MapStatus;
+  errorMessage: string | null;
+  /** `null` tant que la première horloge n'a pas encore tiqué. */
+  now: Date | null;
+  skyData: SkyData;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  const topInset = insets.top + Spacing.two;
+  // Le panneau Ciel desktop occupe toute la colonne droite : les outils
+  // flottants, ancrés à droite, doivent se décaler pour ne pas passer dessous.
+  const isSidePanel = width >= DESKTOP_BREAKPOINT;
+  // Le pointeur central se centre sur la zone de carte réellement visible :
+  // en layout desktop, la colonne droite est occupée par le panneau latéral.
+  const pointerCenterX = isSidePanel ? (width - SIDE_PANEL_WIDTH) / 2 : width / 2;
+  const pointerCenterY = height / 2;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <View style={[styles.overlay, { paddingTop: topInset }]} pointerEvents="box-none">
+      <View style={styles.overlayTop} pointerEvents="box-none">
+        <LocationBadge center={center} />
+
+        <View
+          style={[styles.rightColumn, isSidePanel && { marginRight: SIDE_PANEL_WIDTH + Spacing.three }]}
+          pointerEvents="box-none">
+          <MapToolbar />
+        </View>
+      </View>
+
+      {now && (
+        <SkyPointer
+          center={center}
+          centerX={pointerCenterX}
+          centerY={pointerCenterY}
+          sun={skyData.sun}
+          moon={skyData.moon}
+          iss={skyData.iss.position}
+        />
+      )}
+
+      <View style={styles.overlayNotices} pointerEvents="box-none">
+        {status === 'error' && errorMessage && (
+          <View style={[styles.badge, styles.badgeError]} pointerEvents="none">
+            <ThemedText type="code" style={styles.badgeValue}>
+              {errorMessage}
+            </ThemedText>
+          </View>
+        )}
+        {tileProfileNotice && (
+          <View style={styles.badge} pointerEvents="none">
+            <ThemedText type="code" style={styles.badgeValue}>
+              {tileProfileNotice}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+
+      {now && <SkyPanel data={skyData} now={now} topInset={topInset} />}
+    </View>
   );
 }
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Skyra
-          </ThemedText>
-          <ThemedText type="small" style={styles.title}>
-            Astro &amp; Ombres
-          </ThemedText>
-        </ThemedView>
+export default function MapScreen() {
+  const { location, status: locationStatus, fallbackReason, retry } = useObserverLocation();
 
-        <ThemedText type="code" style={styles.code}>
-          get started
+  const [view, setView] = useState<{ center: MapCoordinates; bearing: number } | null>(null);
+  const [mapStatus, setMapStatus] = useState<MapStatus>('loading');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  const handleViewStateChange = useCallback((next: MapViewState) => {
+    const current = viewRef.current;
+    if (
+      current &&
+      Math.abs(current.center.latitude - next.center.latitude) < CENTER_EPSILON &&
+      Math.abs(current.center.longitude - next.center.longitude) < CENTER_EPSILON &&
+      Math.abs(current.bearing - next.bearing) < BEARING_EPSILON
+    ) {
+      return;
+    }
+    setView({ center: next.center, bearing: next.bearing });
+  }, []);
+
+  const handleStatusChange = useCallback((next: MapStatus, message: string | null) => {
+    setMapStatus(next);
+    setErrorMessage(message);
+  }, []);
+
+  // Horloge partagée par le panneau Ciel et les overlays 3D de la carte —
+  // un seul timer plutôt qu'un par consommateur.
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), REFRESH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Calculé sur la position réelle de l'observateur, pas le centre pané de la
+  // carte : le panneau Ciel et les overlays 3D partagent cette même lecture
+  // (et le même hook ISS, dont le TLE ne doit être récupéré qu'une fois).
+  const skyData = useSkyData(location, now ?? new Date());
+
+  const skyOverlay: SkyOverlay | undefined = useMemo(() => {
+    if (!now) return undefined;
+    return {
+      issPosition: skyData.iss.position
+        ? { latitude: skyData.iss.position.latitude, longitude: skyData.iss.position.longitude }
+        : null,
+      issTrail: skyData.iss.trail,
+      sun: celestialGroundPoint(location, skyData.sun.azimuth, skyData.sun.elevation),
+      moon: celestialGroundPoint(location, skyData.moon.azimuth, skyData.moon.elevation),
+    };
+  }, [
+    now,
+    location,
+    skyData.sun.azimuth,
+    skyData.sun.elevation,
+    skyData.moon.azimuth,
+    skyData.moon.elevation,
+    skyData.iss.position,
+    skyData.iss.trail,
+  ]);
+
+  // La carte ne se recentre pas après coup : on attend la position de départ
+  // pour la monter une seule fois, avec le bon point de vue.
+  if (locationStatus === 'pending') {
+    return (
+      <ThemedView style={styles.centered}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Recherche de votre position…
         </ThemedText>
+      </ThemedView>
+    );
+  }
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+  return (
+    <GestureHandlerRootView style={styles.screen}>
+      <View style={styles.screen}>
+        <ReliefMap
+          initialCenter={location}
+          onViewStateChange={handleViewStateChange}
+          onStatusChange={handleStatusChange}
+          skyOverlay={skyOverlay}
+          style={StyleSheet.absoluteFill}
+        />
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        <MapOverlay
+          center={view?.center ?? location}
+          status={mapStatus}
+          errorMessage={errorMessage}
+          now={now}
+          skyData={skyData}
+        />
+
+        {locationStatus === 'fallback' && (
+          <Pressable
+            onPress={retry}
+            style={({ pressed }) => [styles.retry, pressed && styles.pressed]}>
+            <ThemedText type="code" style={styles.badgeValue}>
+              {fallbackReason} — vue centrée sur {DEFAULT_OBSERVER.label}. Réessayer
+            </ThemedText>
+          </Pressable>
+        )}
+      </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
+    backgroundColor: '#0B1016',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: Spacing.three,
+  },
+  overlayTop: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
+  rightColumn: {
+    alignItems: 'flex-end',
     gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  overlayNotices: {
+    marginTop: Spacing.two,
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    maxWidth: 420,
   },
-  title: {
-    textAlign: 'center',
+  badge: {
+    backgroundColor: '#0B1016CC',
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#FFFFFF22',
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    gap: Spacing.half,
   },
-  code: {
-    textTransform: 'uppercase',
+  badgeError: {
+    borderColor: '#E8533D88',
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
+  badgeValue: {
+    color: '#FFFFFFCC',
+  },
+  retry: {
+    position: 'absolute',
+    bottom: 190,
+    alignSelf: 'center',
+    backgroundColor: '#0B1016DD',
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    borderColor: '#FFFFFF33',
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  },
+  pressed: {
+    opacity: 0.7,
   },
 });

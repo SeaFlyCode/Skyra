@@ -1,7 +1,6 @@
 /**
- * Formatage partagé des lectures Soleil / Lune / ISS. Utilisé à la fois par
- * l'écran Ciel (`app/sky.tsx`) et par le panneau Ciel de l'écran Carte
- * (`modules/map/sky-panel-*`) pour ne jamais dupliquer cette logique.
+ * Formatage partagé des lectures Soleil / Lune / ISS, utilisé par le panneau
+ * Ciel de l'écran Carte (`modules/map/sky-panel-*`).
  */
 
 import type { IssPass } from '@/modules/iss';
