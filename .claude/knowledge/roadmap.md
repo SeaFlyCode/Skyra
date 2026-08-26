@@ -13,6 +13,7 @@ en overlay dessus. Ciel/Home/Explore deviennent secondaires ou disparaissent.
 
 ## ✅ Fait
 
+- Carte = écran unique de l'app, Home/Explore/Ciel/barre d'onglets retirés (2026-08-25)
 - Redesign carte : boussole céleste repensée, pastille position, toolbar flottante, panneau Ciel (bottom sheet mobile / panneau latéral desktop) avec vraies données Soleil/Lune/ISS (2026-08-24)
 - Gestes caméra libres (pitch/bearing à deux doigts) vérifiés actifs par défaut web+natif ; fix `pointerEvents="none"` sur les badges overlay de `map.tsx` qui pouvaient intercepter les gestes (2026-08-24)
 - Carte 3D vectorielle OpenFreeMap : bâtiments extrudés, forêts, parcs, eau, routes principales — profil `openfreemap` par défaut, `maptiler` en vecteur si clé (2026-08-24)
@@ -33,14 +34,16 @@ en overlay dessus. Ciel/Home/Explore deviennent secondaires ou disparaissent.
 
 ## Priorité 2 — Carte comme écran central
 
-- [ ] Carte = premier onglet / écran d'accueil
-- [ ] Retirer Home et Explore (boilerplate Expo) de la navigation
-- [x] Ciel devient un panneau accessible depuis la carte (2026-08-24) : bottom sheet draggable en mobile, panneau latéral ancré en desktop (breakpoint 768px via `useWindowDimensions`) — voir `modules/map/sky-panel*.tsx`. L'onglet Ciel (`sky.tsx`) existe toujours en parallèle, non retiré — doublon à traiter avec le retrait Home/Explore
+- [x] Carte = écran unique de l'app (2026-08-25) : `map.tsx` déplacé vers `app/index.tsx`, plus de barre d'onglets (`Slot` direct dans `_layout.tsx`)
+- [x] Retirer Home et Explore (boilerplate Expo) de la navigation (2026-08-25) : fichiers supprimés
+- [x] Ciel devient un panneau accessible depuis la carte (2026-08-24) : bottom sheet draggable en mobile, panneau latéral ancré en desktop (breakpoint 768px via `useWindowDimensions`) — voir `modules/map/sky-panel*.tsx`. L'onglet Ciel séparé (`sky.tsx`) a été supprimé (2026-08-25), le panneau suffit désormais
+- Note : `app-tabs.tsx`/`app-tabs.web.tsx` supprimés (pas juste laissés inertes) — référençaient des routes typées désormais inexistantes, cassaient `tsc`. À reconstruire de zéro si des tabs reviennent un jour (ex: modules `shadow`/`stars`)
 
 ## Priorité 3 — Overlays sur la carte
 
-- [ ] Position Soleil/Lune + boussole céleste directement sur la vue 3D
-- [ ] Trajectoire ISS en overlay
+- [x] Position Soleil/Lune directement sur la vue 3D (2026-08-25) : marqueur au sol projeté à distance fixe (3 km) le long de l'azimut réel, taille/opacité pilotées par l'élévation — voir `modules/map/celestial-ground.ts` + `sky-overlay.ts`. Complémentaire au cadran `SkyCompass` (inchangé), pas un remplacement
+- [x] Trajectoire ISS en overlay (2026-08-25) : marqueur au point subsatellite réel + ligne de trajectoire ±12 min (échantillonnage 30 s), longitudes dépliées pour l'antiméridien
+- [ ] Vérification visuelle manuelle (marqueurs Soleil/Lune/ISS + trajectoire) — agent n'a pas pu tester en navigateur ni sur simulateur natif, à confirmer par l'utilisateur
 - [ ] Ombres portées en overlay (dépend de l'implémentation réelle de `/shadow`)
 
 ## Priorité 4 — Ombres portées (API + app)

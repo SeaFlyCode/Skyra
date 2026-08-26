@@ -20,7 +20,7 @@ l'API.
 - **Rôle** : UI mobile/web — carte 3D, fiches Soleil/Lune/ISS, navigation par onglets
 - **Stack** : Expo, expo-router, MapLibre (`@maplibre/maplibre-react-native` natif, `maplibre-gl` web)
 - **Chemin** : `packages/app`
-- **Onglets actuels** : Home (boilerplate), Ciel (`sky.tsx`), Carte (`map.tsx`), Explore (boilerplate)
+- **Navigation** : écran unique, pas de barre d'onglets — la carte (`app/index.tsx`, ex `map.tsx`) est le point d'entrée direct via `Slot` dans `_layout.tsx`. Home/Explore/Ciel (boilerplate + doublon) retirés le 2026-08-25 ; `app-tabs.tsx` supprimé (à reconstruire si des tabs reviennent, ex. modules `shadow`/`stars`)
 
 ### shadow-api (Fastify)
 - **Rôle** : proxy TLE ISS (Celestrak, cache 2h) + endpoint `/shadow` (stub mocké, projection d'ombres à implémenter)
@@ -31,7 +31,7 @@ l'API.
 
 - `modules/sun-moon` — calcul offline position Soleil/Lune, phases, heures clés
 - `modules/iss` — propagation SGP4, calcul des passages visibles (`MIN_PASS_ELEVATION`)
-- `modules/map` — carte relief 3D (style MapLibre construit à la main, deux profils de tuiles vectorielles schéma OpenMapTiles : `maptiler` si clé `EXPO_PUBLIC_MAPTILER_KEY`, `openfreemap` par défaut sans clé via `https://tiles.openfreemap.org/planet`). Couches thématiques : `water`, `landcover-wood` (forêts), `landuse-park`, `roads-major`, `buildings-2d`/`buildings-3d` (fill-extrusion, hauteur `render_height`/`height`). Terrain 3D (raster-dem) + hillshade en dessous, inchangés.
+- `modules/map` — carte relief 3D (style MapLibre construit à la main, deux profils de tuiles vectorielles schéma OpenMapTiles : `maptiler` si clé `EXPO_PUBLIC_MAPTILER_KEY`, `openfreemap` par défaut sans clé via `https://tiles.openfreemap.org/planet`). Couches thématiques : `water`, `landcover-wood` (forêts), `landuse-park`, `roads-major`, `buildings-2d`/`buildings-3d` (fill-extrusion, hauteur `render_height`/`height`). Terrain 3D (raster-dem) + hillshade en dessous, inchangés. Overlays géographiques Soleil/Lune/ISS ajoutés en sources/couches GeoJSON dynamiques (`sky-overlay.ts` : specs partagées web/natif, `celestial-ground.ts` : projection azimut/élévation → point sol à distance fixe) — appliqués impérativement (`addSource`/`setData`) en web, déclarativement (`<GeoJSONSource>`/`<Layer>`) en natif
 - `modules/shadow` — placeholder vide, réservé aux ombres portées
 - `modules/stars` — placeholder vide, réservé à la carte du ciel étoilé
 
